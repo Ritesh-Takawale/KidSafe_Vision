@@ -17,7 +17,7 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Segoe UI', sans-serif;
     background: var(--bg);
     color: var(--text);
 }
@@ -28,33 +28,45 @@ header {
     justify-content: space-between;
     align-items: center;
 }
-.logo { display:flex; gap:.75rem; align-items:center; }
+.logo {
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
 .logo-icon {
-    width:44px;height:44px;
+    width:40px;
+    height:40px;
     background:linear-gradient(135deg,var(--primary),#a78bfa);
-    border-radius:12px;
-    display:flex;align-items:center;justify-content:center;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1.2rem;
 }
 .model-badge {
     background:rgba(34,197,94,.15);
     border:1px solid rgba(34,197,94,.4);
     color:var(--safe-green);
-    padding:.35rem .85rem;
+    padding:.4rem .9rem;
     border-radius:999px;
     font-size:.8rem;
 }
-main { max-width:900px; margin:auto; padding:2rem; }
+main {
+    max-width:900px;
+    margin:auto;
+    padding:2rem;
+}
 .card {
     background:var(--card);
-    border-radius:16px;
     padding:1.5rem;
+    border-radius:16px;
     margin-bottom:1.5rem;
 }
 #drop-zone {
     border:2px dashed #475569;
-    border-radius:12px;
     padding:3rem;
     text-align:center;
+    border-radius:12px;
     cursor:pointer;
 }
 #file-input { display:none; }
@@ -63,12 +75,17 @@ main { max-width:900px; margin:auto; padding:2rem; }
 .btn {
     background:var(--primary);
     color:white;
-    padding:.75rem;
     border:none;
-    border-radius:8px;
+    padding:.75rem;
     width:100%;
+    border-radius:8px;
     cursor:pointer;
 }
+.loading {
+    display:none;
+    text-align:center;
+}
+.loading.visible { display:block; }
 .result-safe {
     border:2px solid var(--safe-green);
     background:rgba(34,197,94,.1);
@@ -89,8 +106,9 @@ main { max-width:900px; margin:auto; padding:2rem; }
 }
 .confidence-fill.safe { background:var(--safe-green); }
 .confidence-fill.unsafe { background:var(--unsafe-red); }
-.loading { display:none; text-align:center; }
-.loading.visible { display:block; }
+.stat {
+    margin:5px 0;
+}
 </style>
 </head>
 
@@ -135,8 +153,8 @@ main { max-width:900px; margin:auto; padding:2rem; }
 
     <hr style="margin:1rem 0;border-color:#334155;">
 
-    <p>Safe Probability: <span id="safe-prob"></span></p>
-    <p>Unsafe Probability: <span id="unsafe-prob"></span></p>
+    <div class="stat">Safe Probability: <span id="safe-prob"></span></div>
+    <div class="stat">Unsafe Probability: <span id="unsafe-prob"></span></div>
 </div>
 
 </main>
@@ -165,13 +183,16 @@ fileInput.addEventListener("change", function(e){
 
 async function analyzeImage(){
 
-    if(!selectedFile) return;
+    if(!selectedFile){
+        alert("Please select an image first");
+        return;
+    }
 
     loading.classList.add("visible");
     resultPanel.style.display = "none";
 
     const formData = new FormData();
-    formData.append("image", selectedFile);   // ✅ FIXED KEY NAME
+    formData.append("image", selectedFile);  // ✅ CORRECT KEY
 
     try{
         const response = await fetch("/predict", {
