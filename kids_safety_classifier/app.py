@@ -1,34 +1,37 @@
 """
 Kids Safety Image Classifier - Flask Web Application
-Uses Image Similarity Matching against your safe/unsafe folders
 Production-ready for Render deployment
 """
 
 import os
 import sys
-import json
 import numpy as np
 import cv2
-import gc
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-import base64
 
 # Fix Windows console encoding
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
 
 # ─────────────────────────────────────────────
-# Image Database Setup
+# Paths
 # ─────────────────────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TRAINING_DATA_DIR = os.path.join(BASE_DIR, "training_data")
+
+os.makedirs(os.path.join(TRAINING_DATA_DIR, 'safe'), exist_ok=True)
+os.makedirs(os.path.join(TRAINING_DATA_DIR, 'unsafe'), exist_ok=True)
+
+# ─────────────────────────────────────────────
+# Database
+# ─────────────────────────────────────────────
 
 image_database = {
     "safe": [],
@@ -36,11 +39,6 @@ image_database = {
 }
 
 metadata = {}
-
-# Ensure folders exist
-os.makedirs(os.path.join(TRAINING_DATA_DIR, 'safe'), exist_ok=True)
-os.makedirs(os.path.join(TRAINING_DATA_DIR, 'unsafe'), exist_ok=True)
-
 
 # ─────────────────────────────────────────────
 # Feature Functions
@@ -102,7 +100,7 @@ def cosine_similarity(feat1, feat2):
 
 
 # ─────────────────────────────────────────────
-# Load Database (IMPORTANT FIX)
+# Load Database (AUTO LOAD ON STARTUP)
 # ─────────────────────────────────────────────
 
 def load_image_database():
@@ -131,23 +129,17 @@ def load_image_database():
 
         for filename in files:
             filepath = os.path.join(folder, filename)
-            try:
-                img = cv2.imread(filepath)
-                if img is None:
-                    continue
+            img = cv2.imread(filepath)
+            if img is None:
+                continue
 
-                img = cv2.resize(img, (128, 128))
+            img = cv2.resize(img, (128, 128))
 
-                image_database[category].append({
-                    "filename": filename,
-                    "hash": compute_image_hash(img),
-                    "features": compute_all_features(img)
-                })
-
-                del img
-
-            except Exception as e:
-                print(f"[!] Error loading {filename}: {e}")
+            image_database[category].append({
+                "filename": filename,
+                "hash": compute_image_hash(img),
+                "features": compute_all_features(img)
+            })
 
     total = len(image_database["safe"]) + len(image_database["unsafe"])
 
@@ -162,9 +154,8 @@ def load_image_database():
     return total > 0
 
 
-# 🔥 LOAD DATABASE ON IMPORT (THIS FIXES RENDER ISSUE)
+# 🔥 IMPORTANT: Load on import (Fixes Render issue)
 load_image_database()
-
 
 # ─────────────────────────────────────────────
 # Classification
@@ -184,7 +175,6 @@ def classify_image(img):
         for entry in image_database[category]:
             hash_dist = hamming_distance(query_hash, entry["hash"])
             feat_sim = cosine_similarity(query_features, entry["features"])
-
             score = 1 - (hash_dist / 256) + feat_sim
 
             if score > best_score:
@@ -194,11 +184,17 @@ def classify_image(img):
     if best_category is None:
         return None
 
+    is_safe = best_category == "safe"
+    confidence = round(best_score * 50, 2)
+
+    # ✅ RETURN BOTH OLD + NEW FORMAT
     return {
-        "category": best_category.upper(),
-        "confidence": round(best_score * 50, 2),
-        "safe_images": len(image_database["safe"]),
-        "unsafe_images": len(image_database["unsafe"])
+        "label": 0 if is_safe else 1,          # For old frontend
+        "is_safe": is_safe,                   # For old frontend
+        "category": best_category.upper(),    # For new UI
+        "confidence": confidence,
+        "safe_probability": confidence if is_safe else 100 - confidence,
+        "unsafe_probability": 100 - confidence if is_safe else confidence
     }
 
 
@@ -231,19 +227,15 @@ def predict():
        file.filename.rsplit('.', 1)[1].lower() not in ALLOWED_EXTENSIONS:
         return jsonify({"error": "Invalid file type"}), 400
 
-    try:
-        file_bytes = file.read()
-        nparr = np.frombuffer(file_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    file_bytes = file.read()
+    nparr = np.frombuffer(file_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        if img is None:
-            return jsonify({"error": "Invalid image"}), 400
+    if img is None:
+        return jsonify({"error": "Invalid image"}), 400
 
-        result = classify_image(img)
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    result = classify_image(img)
+    return jsonify(result)
 
 
 @app.route('/health')
