@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KidsSafe AI — Image Safety Classifier</title>
+    <style>
+        :root {
+            --safe-green: #22c55e;
+            --safe-dark: #15803d;
+            --unsafe-red: #ef4444;
+            --unsafe-dark: #b91c1c;
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card2: #243047;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --border: #334155;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── HEADER ── */
+        header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e293b 100%);
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(99,102,241,0.3);
+            position: sticky; top: 0; z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, var(--primary), #a78bfa);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+            box-shadow: 0 4px 15px rgba(99,102,241,0.4);
+        }
+
+        .logo h1 { font-size: 1.4rem; font-weight: 700; }
+        .logo h1 span { color: #a78bfa; }
+        .logo p { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+
+        .model-badge {
+            background: rgba(34,197,94,0.15);
+            border: 1px solid rgba(34,197,94,0.4);
+            color: var(--safe-green);
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+
+        .model-badge.offline {
+            background: rgba(239,68,68,0.15);
+            border-color: rgba(239,68,68,0.4);
+            color: var(--unsafe-red);
+        }
+
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+        /* ── MAIN ── */
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .hero h2 {
+            font-size: 2.5rem; font-weight: 800;
+            background: linear-gradient(135deg, #e0e7ff, #a78bfa, #6366f1);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.75rem;
+        }
+
+        .hero p {
+            color: var(--muted); font-size: 1.05rem; max-width: 550px; margin: 0 auto;
+        }
+
+        /* ── GRID ── */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            .hero h2 { font-size: 1.8rem; }
+        }
+
+        /* ── CARD ── */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.75rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), #a78bfa);
+        }
+
+        .card h3 {
+            font-size: 1rem; font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+            margin-bottom: 1.25rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+
+        /* ── UPLOAD ZONE ── */
+        #drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s;
+            position: relative;
+        }
+
+        #drop-zone:hover, #drop-zone.dragging {
+            border-color: var(--primary);
+            background: rgba(99,102,241,0.05);
+        }
+
+        #drop-zone .upload-icon {
+            font-size: 3rem; margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        #drop-zone h4 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.4rem; }
+        #drop-zone p { color: var(--muted); font-size: 0.875rem; }
+
+        #drop-zone input[type="file"] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer;
+        }
+
+        /* ── PREVIEW ── */
+        #preview-container {
+            display: none;
+            margin-top: 1rem;
+        }
+
+        #preview-img {
+            width: 100%; max-height: 280px; object-fit: contain;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #0f172a;
+        }
+
+        .img-actions {
+            display: flex; gap: 0.75rem; margin-top: 0.75rem;
+        }
+
+        /* ── BUTTONS ── */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            flex: 1;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(99,102,241,0.35);
+        }
+
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.45); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover { color: var(--text); border-color: var(--text); }
+
+        /* ── RESULT ── */
+        #result-panel {
+            display: none;
+        }
+
+        .result-badge {
+            display: flex; align-items: center; gap: 1rem;
+            padding: 1.5rem;
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            border: 1px solid;
+        }
+
+        .result-badge.safe {
+            background: rgba(34,197,94,0.1);
+            border-color: rgba(34,197,94,0.4);
+        }
+
+        .result-badge.unsafe {
+            background: rgba(239,68,68,0.1);
+            border-color: rgba(239,68,68,0.4);
+        }
+
+        .result-icon { font-size: 2.5rem; }
+
+        .result-info h3 { font-size: 1.4rem; font-weight: 800; }
+        .result-info .safe-text { color: var(--safe-green); }
+        .result-info .unsafe-text { color: var(--unsafe-red); }
+        .result-info p { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
+
+        /* ── METER ── */
+        .prob-meters { display: flex; flex-direction: column; gap: 0.85rem; }
+
+        .prob-item label {
+            display: flex; justify-content: space-between;
+            font-size: 0.85rem; margin-bottom: 0.4rem;
+        }
+
+        .prob-item label span:first-child { font-weight: 600; }
+        .prob-item label span:last-child { color: var(--muted); }
+
+        .prob-bar {
+            height: 10px; background: var(--card2);
+            border-radius: 99px; overflow: hidden;
+        }
+
+        .prob-fill {
+            height: 100%; border-radius: 99px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .prob-fill.safe { background: linear-gradient(90deg, #22c55e, #86efac); }
+        .prob-fill.unsafe { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+
+        /* ── ANALYSIS ── */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-top: 1.25rem;
+        }
+
+        .analysis-item {
+            background: var(--card2);
+            border-radius: 12px;
+            padding: 0.9rem;
+        }
+
+        .analysis-item .a-label {
+            font-size: 0.72rem; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--muted);
+            margin-bottom: 0.3rem;
+        }
+
+        .analysis-item .a-value {
+            font-size: 1.2rem; font-weight: 700;
+        }
+
+        .analysis-item .a-bar {
+            height: 4px; background: var(--border);
+            border-radius: 99px; margin-top: 0.4rem; overflow: hidden;
+        }
+
+        .analysis-item .a-bar-fill {
+            height: 100%; border-radius: 99px;
+            background: linear-gradient(90deg, var(--primary), #a78bfa);
+            transition: width 0.8s ease;
+        }
+
+        /* ── STATS CARD ── */
+        .stats-row {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-box {
+            background: var(--card2); border-radius: 12px; padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-box .s-val { font-size: 1.4rem; font-weight: 800; color: #a78bfa; }
+        .stat-box .s-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+        /* ── LOADING ── */
+        #loading {
+            display: none;
+            text-align: center; padding: 3rem 1rem;
+        }
+
+        .spinner {
+            width: 48px; height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── HOW IT WORKS ── */
+        .how-it-works {
+            margin-top: 3rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+
+        .how-it-works h3 {
+            text-align: center; font-size: 1.3rem; font-weight: 700;
+            margin-bottom: 1.75rem;
+        }
+
+        .steps {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .steps { grid-template-columns: repeat(2, 1fr); }
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        .step {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .step-icon {
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(167,139,250,0.2));
+            border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem;
+            margin: 0 auto 0.75rem;
+        }
+
+        .step h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
+        .step p { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+        /* ── TOAST ── */
+        #toast {
+            position: fixed; bottom: 1.5rem; right: 1.5rem;
+            background: var(--card); border: 1px solid var(--border);
+            padding: 0.75rem 1.25rem;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.3s;
+            z-index: 999;
+        }
+
+        #toast.show { transform: translateY(0); opacity: 1; }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            text-align: center; padding: 3rem 1rem; color: var(--muted);
+        }
+
+        .empty-state .e-icon { font-size: 3rem; margin-bottom: 0.75rem; }
+        .empty-state p { font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <div class="logo-icon">🛡️</div>
+        <div>
+            <h1>KidsSafe <span>AI</span></h1>
+            <p>Deep Learning Image Safety Classifier</p>
+        </div>
+    </div>
+    {% if model_ready %}
+    <div class="model-badge">
+        <span class="dot"></span>
+        Model Ready
+        {% if metadata.accuracy %} · {{ "%.1f"|format(metadata.accuracy * 100) }}% Accuracy{% endif %}
+    </div>
+    {% else %}
+    <div class="model-badge offline">
+        <span class="dot"></span>
+        Model Offline — Run train_model.py
+    </div>
+    {% endif %}
+</header>
+
+<main>
+    <div class="hero">
+        <h2>Is This Image Safe for Kids?</h2>
+        <p>Upload any image and our AI will instantly analyze whether it's appropriate for children using deep feature analysis.</p>
+    </div>
+
+    <div class="grid">
+        <!-- Upload Panel -->
+        <div class="card">
+            <h3>📤 Upload Image</h3>
+
+            <div id="drop-zone">
+                <input type="file" id="file-input" accept="image/*">
+                <span class="upload-icon">🖼️</span>
+                <h4>Drop your image here</h4>
+                <p>or click to browse · PNG, JPG, GIF, WebP supported</p>
+            </div>
+
+            <div id="preview-container">
+                <img id="preview-img" src="" alt="Preview">
+                <div class="img-actions">
+                    <button class="btn btn-primary" id="analyze-btn" onclick="analyzeImage()">
+                        🔍 Analyze Image
+                    </button>
+                    <button class="btn btn-outline" onclick="resetAll()">✕ Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div class="card">
+            <h3>🤖 AI Analysis Result</h3>
+
+            <!-- Empty state -->
+            <div class="empty-state" id="empty-state">
+                <div class="e-icon">🔎</div>
+                <p>Upload an image to see the safety analysis</p>
+            </div>
+
+            <!-- Loading -->
+            <div id="loading">
+                <div class="spinner"></div>
+                <p style="color: var(--muted);">Analyzing image with AI...</p>
+            </div>
+
+            <!-- Result -->
+            <div id="result-panel">
+                <div class="result-badge" id="result-badge">
+                    <div class="result-icon" id="result-icon"></div>
+                    <div class="result-info">
+                        <h3 id="result-label"></h3>
+                        <p id="result-desc"></p>
+                    </div>
+                </div>
+
+                <div class="prob-meters">
+                    <div class="prob-item">
+                        <label><span>✅ Safe for Kids</span><span id="safe-pct">0%</span></label>
+                        <div class="prob-bar">
+                            <div class="prob-fill safe" id="safe-bar" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div class="prob-item">
+                        <label><span>⚠️ Potentially Unsafe</span><span id="unsafe-pct">0%</span></label>
+                        <div class="prob-bar">
+                            <div class="prob-fill unsafe" id="unsafe-bar" style="width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analysis-grid" id="analysis-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Stats -->
+    {% if model_ready and metadata and metadata.accuracy %}
+    <div class="stats-row">
+        <div class="stat-box">
+            <div class="s-val">{{ "%.1f"|format(metadata.accuracy * 100) }}%</div>
+            <div class="s-label">Test Accuracy</div>
+        </div>
+        <div class="stat-box">
+            <div class="s-val">{{ "%.1f"|format((metadata.cv_mean or 0) * 100) }}%</div>
+            <div class="s-label">Cross-Val Score</div>
+        </div>
+        <div class="stat-box">
+            <div class="s-val">{{ metadata.feature_dim or 128 }}</div>
+            <div class="s-label">Feature Dimensions</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- How It Works -->
+    <div class="how-it-works">
+        <h3>⚙️ How It Works</h3>
+        <div class="steps">
+            <div class="step">
+                <div class="step-icon">📸</div>
+                <h4>Image Upload</h4>
+                <p>Upload any image in common formats — JPG, PNG, GIF, WebP</p>
+            </div>
+            <div class="step">
+                <div class="step-icon">🔬</div>
+                <h4>Feature Extraction</h4>
+                <p>AI extracts color histograms, skin tones, edge density, brightness & texture patterns</p>
+            </div>
+            <div class="step">
+                <div class="step-icon">🧠</div>
+                <h4>Ensemble Model</h4>
+                <p>Random Forest + Gradient Boosting + SVM work together for accurate prediction</p>
+            </div>
+            <div class="step">
+                <div class="step-icon">🛡️</div>
+                <h4>Safety Verdict</h4>
+                <p>Get instant Safe / Unsafe classification with confidence scores</p>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+    let selectedFile = null;
+    let currentImageData = null;
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const previewContainer = document.getElementById('preview-container');
+    const previewImg = document.getElementById('preview-img');
+    const analyzeBtn = document.getElementById('analyze-btn');
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragging'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); dropZone.classList.remove('dragging');
+        const files = e.dataTransfer.files;
+        if (files.length) handleFile(files[0]);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+        if (!file.type.startsWith('image/')) {
+            showToast('⚠️ Please upload an image file');
+            return;
+        }
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentImageData = e.target.result;
+            previewImg.src = currentImageData;
+            dropZone.style.display = 'none';
+            previewContainer.style.display = 'block';
+            showPanel('empty');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function analyzeImage() {
+        if (!selectedFile && !currentImageData) {
+            showToast('⚠️ Please upload an image first');
+            return;
+        }
+
+        showPanel('loading');
+        analyzeBtn.disabled = true;
+
+        try {
+            // Send as base64
+            const payload = { image: currentImageData };
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                showToast('❌ ' + data.error);
+                showPanel('empty');
+                return;
+            }
+
+            displayResult(data);
+            showPanel('result');
+
+        } catch (err) {
+            showToast('❌ Connection error: ' + err.message);
+            showPanel('empty');
+        } finally {
+            analyzeBtn.disabled = false;
+        }
+    }
+
+    function displayResult(data) {
+        const isSafe = data.is_safe;
+        const badge = document.getElementById('result-badge');
+        const icon = document.getElementById('result-icon');
+        const label = document.getElementById('result-label');
+        const desc = document.getElementById('result-desc');
+
+        badge.className = 'result-badge ' + (isSafe ? 'safe' : 'unsafe');
+        icon.textContent = isSafe ? '✅' : '🚫';
+        label.textContent = isSafe ? 'SAFE FOR KIDS' : 'NOT SAFE FOR KIDS';
+        label.className = isSafe ? 'safe-text' : 'unsafe-text';
+
+        const conf = data.confidence.toFixed(1);
+        desc.textContent = isSafe
+            ? `This image appears safe for children (${conf}% confidence)`
+            : `This image may contain content inappropriate for children (${conf}% confidence)`;
+
+        // Probability bars
+        const safeP = data.safe_probability;
+        const unsafeP = data.unsafe_probability;
+
+        setTimeout(() => {
+            document.getElementById('safe-bar').style.width = safeP + '%';
+            document.getElementById('unsafe-bar').style.width = unsafeP + '%';
+        }, 100);
+
+        document.getElementById('safe-pct').textContent = safeP.toFixed(1) + '%';
+        document.getElementById('unsafe-pct').textContent = unsafeP.toFixed(1) + '%';
+
+        // Analysis grid
+        if (data.analysis) {
+            const a = data.analysis;
+            const items = [
+                { label: 'Skin Tone Ratio', value: a.skin_ratio + '%', pct: a.skin_ratio },
+                { label: 'Brightness', value: a.brightness + '%', pct: a.brightness },
+                { label: 'Edge Density', value: a.edge_density + '%', pct: a.edge_density },
+                { label: 'Color Saturation', value: a.color_saturation + '%', pct: a.color_saturation },
+            ];
+
+            const grid = document.getElementById('analysis-grid');
+            grid.innerHTML = items.map(item => `
+                <div class="analysis-item">
+                    <div class="a-label">${item.label}</div>
+                    <div class="a-value">${item.value}</div>
+                    <div class="a-bar">
+                        <div class="a-bar-fill" style="width: 0%" data-pct="${item.pct}"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            setTimeout(() => {
+                grid.querySelectorAll('.a-bar-fill').forEach(el => {
+                    el.style.width = el.dataset.pct + '%';
+                });
+            }, 200);
+        }
+    }
+
+    function showPanel(which) {
+        document.getElementById('empty-state').style.display = which === 'empty' ? 'block' : 'none';
+        document.getElementById('loading').style.display = which === 'loading' ? 'block' : 'none';
+        document.getElementById('result-panel').style.display = which === 'result' ? 'block' : 'none';
+    }
+
+    function resetAll() {
+        selectedFile = null;
+        currentImageData = null;
+        fileInput.value = '';
+        previewImg.src = '';
+        dropZone.style.display = 'block';
+        previewContainer.style.display = 'none';
+        showPanel('empty');
+        document.getElementById('safe-bar').style.width = '0%';
+        document.getElementById('unsafe-bar').style.width = '0%';
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // Paste support
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData.items;
+        for (let item of items) {
+            if (item.type.startsWith('image/')) {
+                handleFile(item.getAsFile());
+                break;
+            }
+        }
+    });
+</script>
+</body>
+</html>
