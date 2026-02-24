@@ -41,7 +41,9 @@ def main():
     print(f"  Open: http://localhost:{PORT}")
     print(f"{'='*50}\n")
     
-    serve(app, host='127.0.0.1', port=PORT, threads=4)
+    PORT = int(os.environ.get("PORT", 8080))
+    serve(app, host="0.0.0.0", port=PORT)
 
 if __name__ == '__main__':
     main()
+
