@@ -1,0 +1,11 @@
+{
+  "accuracy": 0.9949640287769784,
+  "cv_mean": 0.9911838545358046,
+  "cv_std": 0.0010872855580941032,
+  "feature_dim": 124,
+  "classes": [
+    "Safe",
+    "Unsafe"
+  ],
+  "model_type": "Voting Ensemble (RF + GB + SVM)"
+}
