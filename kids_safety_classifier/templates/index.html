@@ -1,430 +1,222 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KidsSafe AI - Image Safety Classifier</title>
-    <style>
-        :root {
-            --safe-green: #22c55e;
-            --unsafe-red: #ef4444;
-            --primary: #6366f1;
-            --bg: #0f172a;
-            --card: #1e293b;
-            --text: #f1f5f9;
-            --muted: #94a3b8;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
-        header {
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e293b 100%);
-            padding: 1.5rem 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid rgba(99,102,241,0.3);
-        }
-        .logo { display: flex; align-items: center; gap: 0.75rem; }
-        .logo-icon {
-            width: 44px; height: 44px;
-            background: linear-gradient(135deg, var(--primary), #a78bfa);
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.4rem;
-        }
-        .logo h1 { font-size: 1.4rem; }
-        .logo h1 span { color: #a78bfa; }
-        .model-badge {
-            background: rgba(34,197,94,0.15);
-            border: 1px solid rgba(34,197,94,0.4);
-            color: var(--safe-green);
-            padding: 0.35rem 0.85rem;
-            border-radius: 999px;
-            font-size: 0.78rem;
-            font-weight: 600;
-        }
-        .model-badge.offline {
-            background: rgba(239,68,68,0.15);
-            border-color: rgba(239,68,68,0.4);
-            color: var(--unsafe-red);
-        }
-        main {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        .hero {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .hero h2 {
-            font-size: 2rem;
-            background: linear-gradient(135deg, #e0e7ff, #a78bfa, #6366f1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-        .hero p { color: var(--muted); }
-        .card {
-            background: var(--card);
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .card h3 { margin-bottom: 1rem; }
-        #drop-zone {
-            border: 2px dashed #475569;
-            border-radius: 12px;
-            padding: 3rem 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        #drop-zone:hover, #drop-zone.dragover {
-            border-color: var(--primary);
-            background: rgba(99,102,241,0.1);
-        }
-        #drop-zone p { color: var(--muted); margin-top: 0.5rem; }
-        #file-input { display: none; }
-        #preview-container {
-            margin-top: 1rem;
-            display: none;
-        }
-        #preview-container.visible { display: block; }
-        #preview-img {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        .btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            width: 100%;
-            transition: background 0.2s;
-        }
-        .btn:hover { background: #4f46e5; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        #result-panel {
-            display: none;
-        }
-        #result-panel.visible { display: block; }
-        .result-safe {
-            background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.1));
-            border: 2px solid var(--safe-green);
-        }
-        .result-unsafe {
-            background: linear-gradient(135deg, rgba(239,68,68,0.2), rgba(239,68,68,0.1));
-            border: 2px solid var(--unsafe-red);
-        }
-        .result-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        .result-icon {
-            font-size: 3rem;
-        }
-        .result-text h3 {
-            font-size: 1.5rem;
-            margin-bottom: 0.25rem;
-        }
-        .confidence-bar {
-            height: 8px;
-            background: #334155;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 1rem 0;
-        }
-        .confidence-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.5s;
-        }
-        .confidence-fill.safe { background: var(--safe-green); }
-        .confidence-fill.unsafe { background: var(--unsafe-red); }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        .stat-item {
-            background: rgba(0,0,0,0.2);
-            padding: 0.75rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 1.25rem;
-            font-weight: 700;
-        }
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--muted);
-        }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #334155;
-        }
-        .info-row:last-child { border-bottom: none; }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-        }
-        .loading.visible { display: block; }
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid #334155;
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .db-stats {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        .db-stat {
-            flex: 1;
-            background: rgba(0,0,0,0.2);
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .db-stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KidsSafe AI - Image Safety Classifier</title>
+
+<style>
+:root {
+    --safe-green: #22c55e;
+    --unsafe-red: #ef4444;
+    --primary: #6366f1;
+    --bg: #0f172a;
+    --card: #1e293b;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+header {
+    background: linear-gradient(135deg,#1e1b4b,#312e81,#1e293b);
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.logo { display:flex; gap:.75rem; align-items:center; }
+.logo-icon {
+    width:44px;height:44px;
+    background:linear-gradient(135deg,var(--primary),#a78bfa);
+    border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+}
+.model-badge {
+    background:rgba(34,197,94,.15);
+    border:1px solid rgba(34,197,94,.4);
+    color:var(--safe-green);
+    padding:.35rem .85rem;
+    border-radius:999px;
+    font-size:.8rem;
+}
+main { max-width:900px; margin:auto; padding:2rem; }
+.card {
+    background:var(--card);
+    border-radius:16px;
+    padding:1.5rem;
+    margin-bottom:1.5rem;
+}
+#drop-zone {
+    border:2px dashed #475569;
+    border-radius:12px;
+    padding:3rem;
+    text-align:center;
+    cursor:pointer;
+}
+#file-input { display:none; }
+#preview-container { display:none; margin-top:1rem; }
+#preview-container.visible { display:block; }
+.btn {
+    background:var(--primary);
+    color:white;
+    padding:.75rem;
+    border:none;
+    border-radius:8px;
+    width:100%;
+    cursor:pointer;
+}
+.result-safe {
+    border:2px solid var(--safe-green);
+    background:rgba(34,197,94,.1);
+}
+.result-unsafe {
+    border:2px solid var(--unsafe-red);
+    background:rgba(239,68,68,.1);
+}
+.confidence-bar {
+    height:8px;
+    background:#334155;
+    border-radius:4px;
+    overflow:hidden;
+    margin:1rem 0;
+}
+.confidence-fill {
+    height:100%;
+}
+.confidence-fill.safe { background:var(--safe-green); }
+.confidence-fill.unsafe { background:var(--unsafe-red); }
+.loading { display:none; text-align:center; }
+.loading.visible { display:block; }
+</style>
 </head>
+
 <body>
-    <header>
-        <div class="logo">
-            <div class="logo-icon">🛡️</div>
-            <div>
-                <h1>KidsSafe <span>AI</span></h1>
-                <p style="font-size: 0.75rem; color: var(--muted);">Image Safety Classifier</p>
-            </div>
-        </div>
-        {% if model_ready %}
-        <div class="model-badge">● Model Ready</div>
-        {% else %}
-        <div class="model-badge offline">● Model Offline</div>
-        {% endif %}
-    </header>
 
-    <main>
-        <div class="hero">
-            <h2>Is This Image Safe for Kids?</h2>
-            <p>Upload any image and our AI will analyze whether it's appropriate for children.</p>
-        </div>
+<header>
+    <div class="logo">
+        <div class="logo-icon">🛡️</div>
+        <h2>KidsSafe AI</h2>
+    </div>
+    <div class="model-badge">ML Model Active</div>
+</header>
 
-        <div class="card">
-            <h3>📤 Upload Image</h3>
-            <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-                <div style="font-size: 3rem;">📁</div>
-                <p>Click to upload or drag & drop</p>
-                <p style="font-size: 0.8rem;">PNG, JPG, JPEG, GIF, BMP, WEBP</p>
-            </div>
-            <input type="file" id="file-input" accept="image/*">
-            
-            <div id="preview-container">
-                <img id="preview-img" src="" alt="Preview">
-                <button class="btn" id="analyze-btn" onclick="analyzeImage()">🔍 Analyze Image</button>
-            </div>
-        </div>
+<main>
 
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Analyzing image...</p>
-        </div>
+<div class="card">
+    <h3>Upload Image</h3>
+    <div id="drop-zone" onclick="fileInput.click()">Click to upload image</div>
+    <input type="file" id="file-input" accept="image/*">
 
-        <div class="card" id="result-panel">
-            <div class="result-header">
-                <div class="result-icon" id="result-icon">✅</div>
-                <div class="result-text">
-                    <h3 id="result-title">SAFE</h3>
-                    <p id="result-subtitle">Image is appropriate for children</p>
-                </div>
-            </div>
-            
-            <div class="confidence-bar">
-                <div class="confidence-fill safe" id="confidence-fill" style="width: 0%"></div>
-            </div>
-            <p style="text-align: center; font-size: 0.9rem;">
-                <span id="confidence-text">0%</span> confidence
-            </p>
+    <div id="preview-container">
+        <img id="preview-img" style="max-width:100%;max-height:300px;border-radius:8px;">
+        <button class="btn" onclick="analyzeImage()">Analyze Image</button>
+    </div>
+</div>
 
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-match">-</div>
-                    <div class="stat-label">Match Type</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-similarity">0%</div>
-                    <div class="stat-label">Similarity</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-hash">-</div>
-                    <div class="stat-label">Hash Distance</div>
-                </div>
-            </div>
+<div class="loading" id="loading">
+    <p>Analyzing...</p>
+</div>
 
-            <div style="margin-top: 1rem;">
-                <div class="info-row">
-                    <span>Matched File:</span>
-                    <span id="matched-file">-</span>
-                </div>
-                <div class="info-row">
-                    <span>Safe Probability:</span>
-                    <span id="safe-prob">-</span>
-                </div>
-                <div class="info-row">
-                    <span>Unsafe Probability:</span>
-                    <span id="unsafe-prob">-</span>
-                </div>
-            </div>
-        </div>
+<div class="card" id="result-panel" style="display:none;">
+    <h3 id="result-title"></h3>
+    <p id="result-subtitle"></p>
 
-        <div class="card">
-            <h3>📊 Database Info</h3>
-            <div class="db-stats">
-                <div class="db-stat">
-                    <div class="db-stat-value">{{ metadata.safe_count if metadata else 0 }}</div>
-                    <div class="stat-label">Safe Images</div>
-                </div>
-                <div class="db-stat">
-                    <div class="db-stat-value">{{ metadata.unsafe_count if metadata else 0 }}</div>
-                    <div class="stat-label">Unsafe Images</div>
-                </div>
-                <div class="db-stat">
-                    <div class="db-stat-value">{{ metadata.total if metadata else 0 }}</div>
-                    <div class="stat-label">Total Images</div>
-                </div>
-            </div>
-        </div>
-    </main>
+    <div class="confidence-bar">
+        <div id="confidence-fill" class="confidence-fill"></div>
+    </div>
 
-    <script>
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const previewContainer = document.getElementById('preview-container');
-        const previewImg = document.getElementById('preview-img');
-        const resultPanel = document.getElementById('result-panel');
-        const loading = document.getElementById('loading');
+    <p style="text-align:center;">
+        <span id="confidence-text"></span> confidence
+    </p>
 
-        let selectedFile = null;
+    <hr style="margin:1rem 0;border-color:#334155;">
 
-        // Drag and drop
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
+    <p>Safe Probability: <span id="safe-prob"></span></p>
+    <p>Unsafe Probability: <span id="unsafe-prob"></span></p>
+</div>
+
+</main>
+
+<script>
+
+const fileInput = document.getElementById("file-input");
+const previewContainer = document.getElementById("preview-container");
+const previewImg = document.getElementById("preview-img");
+const resultPanel = document.getElementById("result-panel");
+const loading = document.getElementById("loading");
+
+let selectedFile = null;
+
+fileInput.addEventListener("change", function(e){
+    selectedFile = e.target.files[0];
+    if(selectedFile){
+        const reader = new FileReader();
+        reader.onload = function(ev){
+            previewImg.src = ev.target.result;
+            previewContainer.classList.add("visible");
+        }
+        reader.readAsDataURL(selectedFile);
+    }
+});
+
+async function analyzeImage(){
+
+    if(!selectedFile) return;
+
+    loading.classList.add("visible");
+    resultPanel.style.display = "none";
+
+    const formData = new FormData();
+    formData.append("image", selectedFile);   // ✅ FIXED KEY NAME
+
+    try{
+        const response = await fetch("/predict", {
+            method: "POST",
+            body: formData
         });
 
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
+        const result = await response.json();
+        loading.classList.remove("visible");
 
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleFile(file);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files[0]) {
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        function handleFile(file) {
-            selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImg.src = e.target.result;
-                previewContainer.classList.add('visible');
-                resultPanel.classList.remove('visible');
-            };
-            reader.readAsDataURL(file);
+        if(result.error){
+            alert(result.error);
+            return;
         }
 
-        async function analyzeImage() {
-            if (!selectedFile) return;
+        displayResult(result);
 
-            loading.classList.add('visible');
-            resultPanel.classList.remove('visible');
+    }catch(err){
+        loading.classList.remove("visible");
+        alert("Error: " + err.message);
+    }
+}
 
-            const formData = new FormData();
-            formData.append('file', selectedFile);
+function displayResult(result){
 
-            try {
-                const response = await fetch('/predict', {
-                    method: 'POST',
-                    body: formData
-                });
+    const isSafe = result.is_safe;
 
-                const result = await response.json();
-                loading.classList.remove('visible');
+    resultPanel.style.display = "block";
+    resultPanel.className = "card " + (isSafe ? "result-safe" : "result-unsafe");
 
-                if (result.error) {
-                    alert('Error: ' + result.error);
-                    return;
-                }
+    document.getElementById("result-title").textContent = result.category;
+    document.getElementById("result-subtitle").textContent =
+        isSafe ? "Image is appropriate for children"
+               : "Image may not be appropriate for children";
 
-                displayResult(result);
-            } catch (error) {
-                loading.classList.remove('visible');
-                alert('Error analyzing image: ' + error.message);
-            }
-        }
+    const confidenceFill = document.getElementById("confidence-fill");
+    confidenceFill.className = "confidence-fill " + (isSafe ? "safe" : "unsafe");
+    confidenceFill.style.width = result.confidence + "%";
 
-        function displayResult(result) {
-            const isSafe = result.is_safe;
-            
-            resultPanel.className = 'card ' + (isSafe ? 'result-safe' : 'result-unsafe');
-            resultPanel.classList.add('visible');
+    document.getElementById("confidence-text").textContent = result.confidence + "%";
+    document.getElementById("safe-prob").textContent = result.safe_probability + "%";
+    document.getElementById("unsafe-prob").textContent = result.unsafe_probability + "%";
+}
 
-            document.getElementById('result-icon').textContent = isSafe ? '✅' : '⚠️';
-            document.getElementById('result-title').textContent = result.category;
-            document.getElementById('result-subtitle').textContent = isSafe 
-                ? 'Image is appropriate for children' 
-                : 'Image may not be appropriate for children';
+</script>
 
-            const confidenceFill = document.getElementById('confidence-fill');
-            confidenceFill.className = 'confidence-fill ' + (isSafe ? 'safe' : 'unsafe');
-            confidenceFill.style.width = result.confidence + '%';
-            document.getElementById('confidence-text').textContent = result.confidence + '%';
-
-            document.getElementById('stat-match').textContent = result.match_type;
-            document.getElementById('stat-similarity').textContent = result.similarity_score + '%';
-            document.getElementById('stat-hash').textContent = result.hash_distance;
-
-            document.getElementById('matched-file').textContent = result.matched_file;
-            document.getElementById('safe-prob').textContent = result.safe_probability + '%';
-            document.getElementById('unsafe-prob').textContent = result.unsafe_probability + '%';
-        }
-    </script>
 </body>
 </html>
